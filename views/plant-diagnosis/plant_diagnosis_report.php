@@ -1,11 +1,25 @@
 <?php
 
+session_start();
+
 require '../../models/DiagnosisResult.php';
 require '../../models/apis/AllApis.php';
 
 $allApi = new AllApis();
 $diagnosisRes = new DiagnosisResult();
 //$diagnosisResponse = new DiagnosisResult();
+
+$responseId = "";
+$userName = "";
+if (isset($_SESSION['IS_LOGIN_ADMIN'])){
+    $userName = "admin";
+}elseif (isset($_SESSION['IS_LOGIN_USER'])){
+    $userName = "normal_user";
+}else{
+    $userName = "hacker";
+}
+$cropName = "";
+
 
 if (isset($_POST['yes'])){
 
@@ -28,8 +42,11 @@ if (isset($_POST['yes'])){
 //    echo "fileSize : ".$fileSize."<br/>";
 //    echo "fileType : ".$fileType;
 
+//    $cropName = explode('.', $fileName, -1);
     $fileExt = explode('.', $fileName);
     $fileActulalExt = strtolower(end($fileExt));
+//    unset($_SESSION['FILE_NAME']);
+//    $_SESSION['FILE_NAME'] = $fileName;
 
 //    echo "fileName : ".$fileName."<br/>";
 //    echo "fileTmpName : ".$fileTmpName."<br/>";
@@ -54,11 +71,11 @@ if (isset($_POST['yes'])){
             $fileDestination = '../../assets/images/diagnosis-images/'.$fileName;
             move_uploaded_file($fileTmpName, $fileDestination);
 
-            $curl = curl_init();
+//            $curl = curl_init();
             $url = $allApi->getApiUrl();
 //            $url = "http://localhost/GISBL/projects/Plant-Pathology/web-app/web-app/views/plant-diagnosis/plant_diagnosis_report.php";
 
-            $params = array('IMAGE' => $base64image,'FORMAT' => $fileActulalExt, 'SIZE' => $fileSize, 'SIZE_UNIT' => 'KB');
+            $params = array('USER_NAME' => $userName,'CROP_NAME' => $fileName, 'SIZE' => $fileSize, 'SIZE_UNIT' => 'KB', 'FORMAT' => $fileActulalExt, 'IMAGE' => $base64image);
             $buildParam = http_build_query($params);
 //            $defaults = array(
 //                CURLOPT_URL => $url,
@@ -87,6 +104,7 @@ if (isset($_POST['yes'])){
 
 
             $diagnosisRes->setDiagnosisResponse($response);
+//            $dr = $diagnosisRes->getDiagnosisResponse();
 
 
 //            $diagnosisResponse->setDiagnosisResponse($response);
@@ -119,6 +137,9 @@ if (isset($_POST['yes'])){
 $getResponse = $diagnosisRes->getDiagnosisResponse();
 
 $result = explode('_', $getResponse);
+$getResponseId = end($result);
+$responseId = $getResponseId;
+array_pop($result);
 
 switch (count($result)){
     case 3:
@@ -127,6 +148,7 @@ switch (count($result)){
             $diseaseName = array("Early Blight", "Late Blight", "Healthy"),
             $diseaseProbability = $result
         );
+        unset($diseaseProbability[-1]);
         $combinedArrays = array_combine($diseaseName, $diseaseProbability);
         break;
     case 4:
@@ -135,6 +157,7 @@ switch (count($result)){
             $diseaseName = array("Common Rust", "Gray Leaf Spot", "Northern Leaf Blight", "Healthy"),
             $diseaseProbability = $result
         );
+        unset($diseaseProbability[-1]);
         $combinedArrays = array_combine($diseaseName, $diseaseProbability);
         break;
     case 5:
@@ -143,6 +166,7 @@ switch (count($result)){
             $diseaseName = array("Early Blight", "Late Blight", "Leaf Curl", "Leaf Mold", "Healthy"),
             $diseaseProbability = $result
         );
+        unset($diseaseProbability[-1]);
         $combinedArrays = array_combine($diseaseName, $diseaseProbability);
         break;
     default:
@@ -167,7 +191,23 @@ switch (count($result)){
 //
 //sort_arry($DisesArray, $result);
 
-session_start();
+if (isset($_POST['sendFeedback'])){
+    $testResult = $_POST['testResult'];
+
+    $urlSendFeedback = $allApi->getApiUrl();
+    $paramsSendFeedback = array('USER_NAME' => $userName,'CROP_NAME' => 'FEEDBACK', 'SIZE' => $testResult, 'SIZE_UNIT' => $responseId, 'FORMAT' => 'NA', 'IMAGE' => 'NA');
+    $buildParamSendFeedback = http_build_query($paramsSendFeedback);
+
+    $curlForFeedback = curl_init();
+    curl_setopt($curlForFeedback, CURLOPT_URL, $urlSendFeedback);
+    curl_setopt($curlForFeedback, CURLOPT_POST, true);
+    curl_setopt($curlForFeedback, CURLOPT_POSTFIELDS, $buildParamSendFeedback);
+//    curl_setopt($curlForFeedback, CURLOPT_RETURNTRANSFER, true);
+    curl_exec($curlForFeedback);
+    curl_close($curlForFeedback);
+
+}
+
 
 
 ?>
@@ -243,6 +283,28 @@ session_start();
                 ?>
             </p>
         </div>
+        <section>
+            <h4 class="text-blueGray">Test Result : </h4>
+            <div>
+                <form action="plant_diagnosis_report.php" method="post">
+                    <label for="testResultYes" class="text-blueGray">Yes</label>
+                    <input id="testResultYes" type="radio" name="testResult" value="yes" checked>
+                    <label for="testResultNo" class="text-blueGray ml-4">No</label>
+                    <input id="testResultNo" type="radio" name="testResult" value="no">
+                    <div>
+                        <button name="sendFeedback" type="submit" class="btn bg-blueGray text-white rounded-pill">Send Feedback</button>
+                    </div>
+                </form>
+
+            </div>
+        </section>
+        <?php
+        $dr = $diagnosisRes->getDiagnosisResponse();
+        echo $dr;
+        $exDr = explode('_', $dr);
+        $res = end($exDr);
+        echo "</br>".$res;
+        ?>
     </div>
 </div>
 
